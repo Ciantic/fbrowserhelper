@@ -1,0 +1,23 @@
+[package]
+name = "fbrowserhelper"
+version = "0.1.0"
+edition = "2021"
+authors = ["Jari Pennanen <ciantic@oksidi.com>"]
+license = "MIT"
+
+[dependencies]
+reqwest = { version = "0.12", features = ["blocking", "json"] }
+lodepng = { version = "3.10.0" }
+ico = { version = "0.3.0" }
+url = { version = "*" }
+windows = { version = "0.56.0", features = [
+    "Win32_Graphics_Gdi",
+    "Win32_System_LibraryLoader",
+    "Win32_UI_Accessibility",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_System_Threading",
+    "Win32_UI_Shell_PropertiesSystem",    # for IPropertyStore
+    "Win32_Storage_EnhancedStorage",      # for PKEY_AppUserModel_ID
+    "Win32_System_Com_StructuredStorage", # Win32_System_Com_StructuredStorage
+
+] }
