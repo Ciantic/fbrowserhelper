@@ -240,6 +240,10 @@ fn get_favicon_from_url(url: &Url) -> Result<String, GetFaviconError> {
 
     if icon.headers().get("content-type").unwrap() != "image/png" {
         // This should not happen, as Google's favicon service always returns a PNG
+        println!(
+            "Format is {:?}",
+            icon.headers().get("content-type").unwrap()
+        );
         return Err(GetFaviconError::NotInPngFormatError);
     }
 
@@ -261,3 +265,12 @@ fn get_favicon_from_url(url: &Url) -> Result<String, GetFaviconError> {
     icon_dir.write(std::fs::File::create(&icon_file)?)?;
     Ok(icon_file)
 }
+
+// TODO: Pinning relaunch support:
+// PKEY_AppUserModel_RelaunchCommand to define a relaunch command when pinned
+// PKEY_AppUserModel_RelaunchDisplayNameResource name of the pinned app
+// PKEY_AppUserModel_RelaunchIconResource Pinned icon resource
+
+// https://learn.microsoft.com/en-us/windows/win32/properties/props-system-appusermodel-preventpinning
+// https://learn.microsoft.com/en-us/windows/win32/properties/props-system-appusermodel-relaunchcommand
+// https://learn.microsoft.com/en-us/windows/win32/properties/props-system-appusermodel-relaunchdisplaynameresource
