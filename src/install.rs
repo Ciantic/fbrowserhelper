@@ -45,7 +45,7 @@ pub fn install(browser: Browser, extension: &NativeManifestJson) -> Result<(), &
         )
         .map_err(|_| "Failed to create registry key")?
         .0
-        .set_value("", &manifest_json_path.to_string_lossy().into_owned())
+        .set_value("", &manifest_json_path.as_os_str())
         .map_err(|_| "Failed to set registry key value")?;
 
     Ok(())
