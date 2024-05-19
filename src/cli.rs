@@ -17,7 +17,7 @@ use crate::install::{self, Browser, NativeManifestJson};
 
 /// FBrowserHelper
 #[derive(Parser, Debug)]
-#[command(version, about, long_about = "None", arg_required_else_help = true)]
+#[command(version, about, long_about = "None")]
 struct Opts {
     /// Install to browsers, separate by comma
     #[arg(short, long, use_value_delimiter = true, value_name = "BROWSERS")]
@@ -33,11 +33,11 @@ pub fn main_cli() -> Result<(), &'static str> {
     if !args.install.is_empty() {
         let native_manifest_json = NativeManifestJson {
             path: current_exe_path,
-            name: "FBrowserHelper".into(),
-            description: "FBrowserHelper".into(),
+            name: "f_browser_helper_app".into(),
+            description: "".into(),
             type_: "stdio".into(),
-            allowed_origins: vec!["chrome-extension://*".into()],
-            allowed_extensions: vec!["".into()],
+            allowed_origins: vec!["chrome://*".into()],
+            allowed_extensions: vec!["f_browser_helper_ext@oksidi.com".into()],
         };
 
         // Install for each browser
