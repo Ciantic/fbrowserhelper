@@ -1,7 +1,7 @@
 use ico::IconImage;
 use url::Url;
 use windows::{
-    core::{s, HSTRING, PCWSTR},
+    core::{s, HSTRING, PCWSTR, PWSTR},
     Win32::{
         Foundation::*,
         Graphics::Gdi::ValidateRect,
@@ -10,7 +10,12 @@ use windows::{
             Com::StructuredStorage::{
                 InitPropVariantFromBooleanVector, InitPropVariantFromStringVector,
             },
-            LibraryLoader::GetModuleHandleA,
+            LibraryLoader::{GetModuleFileNameW, GetModuleHandleA},
+            ProcessStatus::EnumProcessModules,
+            Threading::{
+                OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_FORMAT,
+                PROCESS_QUERY_INFORMATION, PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_VM_READ,
+            },
         },
         UI::{
             Shell::PropertiesSystem::{IPropertyStore, SHGetPropertyStoreForWindow},
@@ -18,6 +23,8 @@ use windows::{
         },
     },
 };
+
+use crate::{log, utils::favicon::get_favicon_from_url};
 
 fn main() -> windows::core::Result<()> {
     unsafe {
@@ -86,11 +93,10 @@ extern "system" fn wndproc(window: HWND, message: u32, wparam: WPARAM, lparam: L
                                 ungroup_taskbar_button(target_window, &url.to_string());
 
                                 // Allow maximizing and snappin the window
-                                set_maximize(target_window);
+                                allow_maximize_and_snapping(target_window);
 
                                 // Set the icon
-                                let icon_path = get_favicon_from_url(&url);
-                                match icon_path {
+                                match get_favicon_from_url(&url) {
                                     Err(err) => {
                                         println!("Error {:?}", err);
                                     }
@@ -128,12 +134,12 @@ extern "system" fn wndproc(window: HWND, message: u32, wparam: WPARAM, lparam: L
     }
 }
 
-fn set_maximize(window: HWND) {
+pub fn allow_maximize_and_snapping(window: HWND) {
     let style = unsafe { GetWindowLongA(window, GWL_STYLE) };
     unsafe { SetWindowLongA(window, GWL_STYLE, style | WS_MAXIMIZEBOX.0 as i32) };
 }
 
-fn set_icon(window: HWND, icon_path: String) {
+pub fn set_icon(window: HWND, icon_path: String) {
     let icon_path_hstring = HSTRING::from(&icon_path);
     let icon_path_pcstr = PCWSTR(icon_path_hstring.as_ptr());
     let hicon =
@@ -149,21 +155,25 @@ fn set_icon(window: HWND, icon_path: String) {
     };
 }
 
-fn get_window_title(window: HWND) -> String {
+pub fn get_active_window() -> HWND {
+    unsafe { GetForegroundWindow() }
+}
+
+pub fn get_window_title(window: HWND) -> String {
     let mut title = [0u16; 256];
     let _len = unsafe { GetWindowTextW(window, &mut title) };
     let strr = HSTRING::from_wide(&title.split_at(_len as usize).0).unwrap_or_default();
     strr.to_string()
 }
 
-fn get_window_class(window: HWND) -> String {
+pub fn get_window_class(window: HWND) -> String {
     let mut class_name = [0u16; 256];
     let _len = unsafe { RealGetWindowClassW(window, &mut class_name) };
     let strr = HSTRING::from_wide(&class_name.split_at(_len as usize).0).unwrap_or_default();
     strr.to_string()
 }
 
-fn ungroup_taskbar_button(window: HWND, new_id: &str) {
+pub fn ungroup_taskbar_button(window: HWND, new_id: &str) {
     unsafe {
         let store: IPropertyStore = SHGetPropertyStoreForWindow(window).unwrap();
 
@@ -183,85 +193,44 @@ fn ungroup_taskbar_button(window: HWND, new_id: &str) {
     }
 }
 
+pub fn get_process_name(window: HWND) -> String {
+    unsafe {
+        // Get the process ID
+        let mut process_id = 0;
+        GetWindowThreadProcessId(window, Some(&mut process_id as *mut u32));
+        if process_id == 0 {
+            log("Failed to get process ID");
+            return "".to_string();
+        }
+
+        // Get the process handle
+        let hproc =
+            OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, process_id).unwrap_or_default();
+        if hproc.0 == 0 {
+            log("Failed to get process handle");
+            return "".to_string();
+        }
+
+        // Get the process name
+        let mut exebuffer = [0u16; 1024];
+        let exepwstr = PWSTR::from_raw(&mut exebuffer as *mut u16);
+        let mut exelen = 1024;
+        if let Err(err) =
+            QueryFullProcessImageNameW(hproc, PROCESS_NAME_FORMAT::default(), exepwstr, &mut exelen)
+        {
+            log(&format!("Failed to query process name: {:?}", err));
+            return "".to_string();
+        }
+        exepwstr.to_string().unwrap_or_default()
+    }
+}
+
 fn get_url_from_string(string: &str) -> Option<Url> {
     let url = Url::parse(string.split(" ").next().unwrap());
     match url {
         Ok(url) => Some(url),
         Err(_) => None,
     }
-}
-
-#[allow(dead_code)]
-#[derive(Debug)]
-enum GetFaviconError {
-    UrlDomainError,
-    NotInPngFormatError,
-    ReqwestError(reqwest::Error),
-    IOError(std::io::Error),
-    LodepngError(lodepng::Error),
-}
-
-// Allow IOError to be converted to GetFaviconError
-impl From<std::io::Error> for GetFaviconError {
-    fn from(error: std::io::Error) -> Self {
-        GetFaviconError::IOError(error)
-    }
-}
-
-// Allow ReqwestError to be converted to GetFaviconError
-impl From<reqwest::Error> for GetFaviconError {
-    fn from(error: reqwest::Error) -> Self {
-        GetFaviconError::ReqwestError(error)
-    }
-}
-
-// Allow LodepngError to be converted to GetFaviconError
-impl From<lodepng::Error> for GetFaviconError {
-    fn from(error: lodepng::Error) -> Self {
-        GetFaviconError::LodepngError(error)
-    }
-}
-
-fn get_favicon_from_url(url: &Url) -> Result<String, GetFaviconError> {
-    let icon_file = format!(
-        "{}.ico",
-        url.domain().ok_or(GetFaviconError::UrlDomainError)?
-    );
-
-    // Check if the icon file already exists
-    if std::fs::metadata(&icon_file).is_ok() {
-        return Ok(icon_file);
-    }
-
-    // Fetch the icon and convert to ico before saving
-    let icon = reqwest::blocking::get(format!("https://t2.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url={}&size=128", url))?;
-
-    if icon.headers().get("content-type").unwrap() != "image/png" {
-        // This should not happen, as Google's favicon service always returns a PNG
-        println!(
-            "Format is {:?}",
-            icon.headers().get("content-type").unwrap()
-        );
-        return Err(GetFaviconError::NotInPngFormatError);
-    }
-
-    let pngbytes = icon.bytes()?.to_vec();
-    let decoded_png = lodepng::decode32(pngbytes.as_slice())?;
-    let bytevector: Vec<u8> = decoded_png
-        .buffer
-        .iter()
-        .flat_map(|pixel| [pixel.r, pixel.g, pixel.b, pixel.a])
-        .collect();
-    let icondata = IconImage::from_rgba_data(
-        decoded_png.width as u32,
-        decoded_png.height as u32,
-        bytevector,
-    );
-
-    let mut icon_dir = ico::IconDir::new(ico::ResourceType::Icon);
-    icon_dir.add_entry(ico::IconDirEntry::encode(&icondata)?);
-    icon_dir.write(std::fs::File::create(&icon_file)?)?;
-    Ok(icon_file)
 }
 
 // TODO: Pinning relaunch support:

@@ -9,8 +9,7 @@
 
     "browser_specific_settings": {
         "gecko": {
-            "id": "f_browser_helper_ext@oksidi.com",
-            "strict_min_version": "50.0"
+            "id": "f_browser_helper_ext@oksidi.com"
         }
     },
 

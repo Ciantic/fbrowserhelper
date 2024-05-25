@@ -1,3 +1,11 @@
 {
-    "editor.formatOnSave": true
+    "editor.formatOnSave": true,
+    "deno.enable": true,
+    "triggerTaskOnSave.restart": false,
+    "triggerTaskOnSave.on": true,
+    "triggerTaskOnSave.tasks": {
+        "deno ts": ["**/*.ts", "**/*.tsx"],
+        "deno sass": ["**/*.scss"],
+        "deno list php": ["**/*.php"]
+    }
 }

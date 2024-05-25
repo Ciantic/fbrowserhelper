@@ -19,7 +19,7 @@ windows = { version = "0.56.0", features = [
     "Win32_UI_Shell_PropertiesSystem",    # for IPropertyStore
     "Win32_Storage_EnhancedStorage",      # for PKEY_AppUserModel_ID
     "Win32_System_Com_StructuredStorage", # Win32_System_Com_StructuredStorage
-
+    "Win32_System_ProcessStatus",         # EnumProcessModules
 ] }
 winreg = "0.52.0"
 clap = { version = "4.5.4", features = ["derive"] }

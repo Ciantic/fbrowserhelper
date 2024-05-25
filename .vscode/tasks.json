@@ -1,0 +1,36 @@
+{
+    // See https://go.microsoft.com/fwlink/?LinkId=733558
+    // for the documentation about the tasks.json format
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "deno sass",
+            "type": "shell",
+            "command": "deno run -A deno-build-scss.ts \"${relativeFile}\" \"${fileBasenameNoExtension}.css\"",
+            // "problemMatcher": ["$lessc"],
+            "presentation": {
+                "echo": true,
+                "reveal": "never",
+                "focus": false
+            }
+        },
+        {
+            "label": "deno list php",
+            "type": "shell",
+            "command": "deno run -A deno-list-php.ts"
+        },
+        {
+            "label": "deno ts",
+            "type": "shell",
+            "command": "deno run -A deno-build-typescript.ts \"${relativeFile}\" \"${relativeFileDirname}/${fileBasenameNoExtension}.js\"",
+            "presentation": {
+                "reveal": "silent"
+            }
+        },
+        {
+            "label": "deno bundle",
+            "type": "shell",
+            "command": "deno bundle \"${relativeFile}\" \"${relativeFileDirname}/${fileBasenameNoExtension}.js\""
+        }
+    ]
+}
