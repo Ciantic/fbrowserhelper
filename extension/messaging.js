@@ -1,13 +1,10 @@
 // extension/messaging.ts
-if ("chrome" in window && !("browser" in window)) {
-  browser = chrome;
-}
 var port = null;
 var listeners = /* @__PURE__ */ new Set();
 var disconnectListeners = /* @__PURE__ */ new Set();
 function openOrReusePort() {
   if (!port) {
-    port = browser.runtime.connectNative("f_browser_helper_app");
+    port = chrome.runtime.connectNative("f_browser_helper_app");
     port.onMessage.addListener((msg) => {
       for (const listener of listeners) {
         listener(msg);
@@ -18,10 +15,6 @@ function openOrReusePort() {
         listener(port2);
       }
     });
-  }
-  if (port.error) {
-    console.warn("Error opening port: ", port.error);
-    port = null;
   }
   return port;
 }

@@ -1,7 +1,7 @@
 {
     "name": "f_browser_helper_ext",
-    "description": "",
-    "manifest_version": 2,
+    "description": "Taskbar helper",
+    "manifest_version": 3,
     "version": "1.0",
     "icons": {
         "48": "icon.svg"
@@ -14,12 +14,14 @@
     },
 
     "background": {
-        "scripts": ["background.js"]
+        "service_worker": "background.js",
+        "scripts": ["background.js"],
+        "type": "module"
     },
 
-    "browser_action": {
+    "action": {
         "default_icon": "icon.svg"
     },
 
-    "permissions": ["nativeMessaging"]
+    "permissions": ["nativeMessaging", "tabs"]
 }

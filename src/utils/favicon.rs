@@ -1,5 +1,9 @@
+use std::io::Read;
+
 use ico::IconImage;
 use url::Url;
+
+use crate::log;
 
 #[allow(dead_code)]
 #[derive(Debug)]
@@ -32,11 +36,14 @@ impl From<lodepng::Error> for GetFaviconError {
     }
 }
 
+/// Get the favicon from a URL
+///
+/// Uses only the domain part and queries the icon from Google
 pub fn get_favicon_from_url(url: &Url) -> Result<String, GetFaviconError> {
-    let icon_file = format!(
-        "{}.ico",
-        url.domain().ok_or(GetFaviconError::UrlDomainError)?
-    );
+    let domain = url.domain().ok_or(GetFaviconError::UrlDomainError)?;
+    let url_without_path = format!("{}://{}", url.scheme(), domain);
+
+    let icon_file = format!("{}.ico", domain);
 
     // Check if the icon file already exists
     if std::fs::metadata(&icon_file).is_ok() {
@@ -44,14 +51,14 @@ pub fn get_favicon_from_url(url: &Url) -> Result<String, GetFaviconError> {
     }
 
     // Fetch the icon and convert to ico before saving
-    let icon = reqwest::blocking::get(format!("https://t2.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url={}&size=128", url))?;
+    let icon = reqwest::blocking::get(format!("https://t2.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url={}&size=128", url_without_path))?;
 
     if icon.headers().get("content-type").unwrap() != "image/png" {
         // This should not happen, as Google's favicon service always returns a PNG
-        println!(
+        log(&format!(
             "Format is {:?}",
             icon.headers().get("content-type").unwrap()
-        );
+        ));
         return Err(GetFaviconError::NotInPngFormatError);
     }
 

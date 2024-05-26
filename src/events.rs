@@ -7,8 +7,8 @@ use crate::log;
 use crate::utils::favicon::get_favicon_from_url;
 use crate::utils::native_messaging::{read_message, send_message};
 use crate::utils::win32::{
-    get_active_window, get_process_name, get_window_class, get_window_title, set_icon,
-    ungroup_taskbar_button,
+    allow_maximize_and_snapping, get_active_window, get_process_name, get_window_class,
+    get_window_title, set_icon, ungroup_taskbar_button,
 };
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -91,15 +91,24 @@ fn event_handler(msg: MessageFromBrowser) -> Result<MessageToBrowser, MessageToE
         }
 
         MessageFromBrowser::SetTaskbarIcon { hwnd, icon_url } => {
+            log(&format!("Setting icon for hwnd {} to {}", hwnd, icon_url));
+            let hwnd = HWND(hwnd as isize);
+
             let url = url::Url::parse(&icon_url).map_err(|_| MessageToError::UrlParsingError {
                 message: "Invalid favicon URL".into(),
             })?;
 
             let favicon_path = get_favicon_from_url(&url).map_err(|err| MessageToError::Error {
-                message: format!("{:?}", err),
+                message: "Failed to get favicon".into(),
+                // message: format!("{:?}", err),
             })?;
 
-            set_icon(HWND(hwnd as isize), favicon_path);
+            set_icon(hwnd, favicon_path);
+
+            // When using popups in Firefox, the window is not maximizable, enable that
+            allow_maximize_and_snapping(hwnd);
+
+            log(&format!("Icon set for hwnd {}", hwnd.0));
 
             Ok(MessageToBrowser::Ok)
         }

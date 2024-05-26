@@ -1,12 +1,10 @@
-import type { Browser, Runtime } from "npm:@types/webextension-polyfill";
+import type {} from "npm:@types/chrome";
+// import type { Browser, Runtime, Tabs } from "npm:@types/webextension-polyfill";
 import { postMessage, listenToMessage, listenToDisconnect } from "./messaging.ts";
+import { PortableLoader } from "https://deno.land/x/esbuild_deno_loader@0.9.0/src/loader_portable.ts";
 
-declare const browser: Browser;
-
-if ("chrome" in window && !("browser" in window)) {
-    // @ts-ignore: Chrome is not defined
-    browser = chrome;
-}
+// declare const browser: Browser;
+declare const chrome: typeof globalThis.chrome;
 
 type WindowId = number;
 type HWND = number;
@@ -28,23 +26,83 @@ browser.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 });
 */
 
-let curWindowId: WindowId | null = null;
-browser.windows.onFocusChanged.addListener((windowId) => {
-    curWindowId = windowId;
-
-    // If windowId is -1, it means no browser window is focused.
-    if (windowId === -1) {
+function updateWindowIcon(tab: chrome.tabs.Tab) {
+    if (!tab.windowId) {
+        console.warn("No windowId for tab: ", tab);
+        return;
+    }
+    if (!tab.url) {
+        console.warn("No URL for tab: ", tab);
         return;
     }
 
-    // If we already have the window info, no need to get it again.
-    if (windowInfoMap.has(windowId)) {
+    const windowInfo = windowInfoMap.get(tab.windowId);
+    if (!windowInfo) {
+        console.warn("No window info for window: ", tab.windowId);
         return;
     }
+
+    console.log("Setting taskbar icon for window: ", windowInfo.hwnd, tab.url);
 
     postMessage({
-        type: "getActiveWindow",
+        type: "setTaskbarIcon",
+        hwnd: windowInfo.hwnd,
+        iconUrl: tab.url,
     });
+}
+
+chrome.tabs.onActivated.addListener(async (activeInfo) => {
+    console.log("Tab activated: ", activeInfo);
+    const tab = await chrome.tabs.get(activeInfo.tabId);
+    updateWindowIcon(tab);
+});
+
+chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+    // When changing the favicon url
+    if (changeInfo.favIconUrl) {
+        if (tab.active) {
+            updateWindowIcon(tab);
+        }
+        // console.log("Tab updated: ", changeInfo.favIconUrl, tabId, tab.windowId);
+    }
+});
+
+// browser.tabs.onHighlighted.addListener((highlightInfo) => {
+//     console.log("Tab highlighted: ", highlightInfo);
+//     browser.tabs.get(highlightInfo.tabIds[0]).then((tab) => {
+//         updateWindowIcon(tab);
+//     });
+// });
+
+let curWindowId: WindowId | null = null;
+chrome.windows.onFocusChanged.addListener(async (windowId) => {
+    // If windowId is -1, it means no browser window is focused.
+    if (
+        windowId === chrome.windows.WINDOW_ID_NONE ||
+        windowId === chrome.windows.WINDOW_ID_CURRENT
+    ) {
+        return;
+    }
+
+    // Store the current windowId.
+    curWindowId = windowId;
+
+    // If we don't have window info, request it.
+    if (!windowInfoMap.has(windowId)) {
+        postMessage({
+            type: "getActiveWindow",
+        });
+    }
+
+    // Update icon of active tab in the window
+    const tabs = await chrome.tabs.query({
+        active: true,
+        windowId: windowId,
+    });
+
+    if (tabs.length > 0) {
+        updateWindowIcon(tabs[0]);
+    }
 });
 
 listenToMessage((msg) => {
@@ -74,11 +132,17 @@ listenToMessage((msg) => {
             hwnd: msg.hwnd,
             className: msg.className,
         });
+
+        postMessage({
+            type: "ungroupTaskbarButton",
+            hwnd: msg.hwnd,
+            newId: curWindowId.toString(),
+        });
     }
 });
 
 // Browser action
-browser.browserAction.onClicked.addListener(() => {
+chrome.action.onClicked.addListener(() => {
     postMessage({
         type: "getActiveWindow",
     });

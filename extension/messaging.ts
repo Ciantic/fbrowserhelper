@@ -1,11 +1,8 @@
-import { Browser, Runtime } from "npm:@types/webextension-polyfill";
+import type {} from "npm:@types/chrome";
+// import type { Browser, Runtime, Tabs } from "npm:@types/webextension-polyfill";
 
-declare const browser: Browser;
-
-if ("chrome" in window && !("browser" in window)) {
-    // @ts-ignore: Chrome is not defined
-    browser = chrome;
-}
+// declare const browser: Browser;
+declare const chrome: typeof globalThis.chrome;
 
 type MessageFromBrowser =
     | { type: "getActiveWindow" }
@@ -24,13 +21,13 @@ type MessageToError =
     | { type: "jsonParseError"; message: string }
     | { type: "panic"; message: string; file: string | null; line: number | null };
 
-let port: Runtime.Port | null = null;
+let port: chrome.runtime.Port | null = null;
 let listeners = new Set<(msg: MessageToBrowser | MessageToError) => void>();
-let disconnectListeners = new Set<(port: Runtime.Port) => void>();
+let disconnectListeners = new Set<(port: chrome.runtime.Port) => void>();
 
 function openOrReusePort() {
     if (!port) {
-        port = browser.runtime.connectNative("f_browser_helper_app");
+        port = chrome.runtime.connectNative("f_browser_helper_app");
         port.onMessage.addListener((msg) => {
             for (const listener of listeners) {
                 listener(msg);
@@ -41,10 +38,6 @@ function openOrReusePort() {
                 listener(port);
             }
         });
-    }
-    if (port.error) {
-        console.warn("Error opening port: ", port.error);
-        port = null;
     }
     return port;
 }
@@ -63,7 +56,7 @@ export function listenToMessage(cb: (msg: MessageToBrowser | MessageToError) => 
     openOrReusePort()?.onMessage.addListener(cb);
 }
 
-export function listenToDisconnect(cb: (port: Runtime.Port) => void) {
+export function listenToDisconnect(cb: (port: chrome.runtime.Port) => void) {
     disconnectListeners.add(cb);
     openOrReusePort()?.onDisconnect.addListener(cb);
 }

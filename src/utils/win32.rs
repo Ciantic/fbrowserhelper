@@ -1,3 +1,5 @@
+use std::thread;
+
 use ico::IconImage;
 use url::Url;
 use windows::{
@@ -143,14 +145,30 @@ pub fn set_icon(window: HWND, icon_path: String) {
     let icon_path_hstring = HSTRING::from(&icon_path);
     let icon_path_pcstr = PCWSTR(icon_path_hstring.as_ptr());
     let hicon =
-        unsafe { LoadImageW(None, icon_path_pcstr, IMAGE_ICON, 0, 0, LR_LOADFROMFILE).unwrap() };
-    println!("Set icon {} {:?}", &icon_path, hicon.0);
+        unsafe { LoadImageW(None, icon_path_pcstr, IMAGE_ICON, 64, 64, LR_LOADFROMFILE).unwrap() };
+    let hicon2 = unsafe {
+        LoadImageW(None, icon_path_pcstr, IMAGE_ICON, 128, 128, LR_LOADFROMFILE).unwrap()
+    };
+
+    if hicon.is_invalid() || hicon2.is_invalid() {
+        log(&format!("Failed to load icon: {:?}", icon_path));
+        return;
+    }
+
     let _ = unsafe {
-        SendMessageA(
+        PostMessageW(
             window,
             WM_SETICON,
             WPARAM(ICON_SMALL as usize),
             LPARAM(hicon.0 as isize),
+        )
+    };
+    let _ = unsafe {
+        PostMessageW(
+            window,
+            WM_SETICON,
+            WPARAM(ICON_BIG as usize),
+            LPARAM(hicon2.0 as isize),
         )
     };
 }
@@ -241,3 +259,71 @@ fn get_url_from_string(string: &str) -> Option<Url> {
 // https://learn.microsoft.com/en-us/windows/win32/properties/props-system-appusermodel-preventpinning
 // https://learn.microsoft.com/en-us/windows/win32/properties/props-system-appusermodel-relaunchcommand
 // https://learn.microsoft.com/en-us/windows/win32/properties/props-system-appusermodel-relaunchdisplaynameresource
+
+#[cfg(test)]
+mod tests {
+    use windows::core::w;
+
+    use super::*;
+
+    #[test]
+    fn test_set_icon() {
+        let window = HWND(3281102);
+        // let window = HWND(917684);
+        let title = get_window_title(window);
+        println!("Title {}", &title);
+        if title == "" {
+            println!("No title");
+            return;
+        }
+
+        let icon_path_pcstr =
+            w!("C:\\Source\\Rust\\fbrowserhelper\\target\\debug\\www.nytimes.com.ico");
+
+        // let hicon = unsafe {
+        //     LoadImageW(None, icon_path_pcstr, IMAGE_ICON, 64, 64, LR_LOADFROMFILE).unwrap()
+        // };
+        let hicon2 = unsafe {
+            LoadImageW(None, icon_path_pcstr, IMAGE_ICON, 128, 128, LR_LOADFROMFILE).unwrap()
+        };
+        println!("HICON2 {:?}", hicon2.0);
+        let hicon = unsafe {
+            LoadImageW(None, icon_path_pcstr, IMAGE_ICON, 64, 64, LR_LOADFROMFILE).unwrap()
+        };
+        let hicon2 = unsafe {
+            LoadImageW(None, icon_path_pcstr, IMAGE_ICON, 256, 256, LR_LOADFROMFILE).unwrap()
+        };
+        println!("HICON1 {:?}", hicon.0);
+        println!("HICON2 {:?}", hicon2.0);
+        // std::thread::sleep(std::time::Duration::from_secs(2));
+        // thread::spawn(move || {
+        // thread::spawn(move || {
+        let res1 = unsafe {
+            SendMessageW(
+                window,
+                WM_SETICON,
+                WPARAM(ICON_SMALL as usize),
+                LPARAM(hicon.0 as isize),
+            )
+        };
+        // let err = unsafe { GetLastError() };
+        println!("Set icon result: {}", res1.0);
+
+        let res2 = unsafe {
+            SendMessageW(
+                window,
+                WM_SETICON,
+                WPARAM(ICON_BIG as usize),
+                LPARAM(hicon2.0 as isize),
+            )
+        };
+        println!("Set icon result 2: {}", res1.0);
+        // });
+
+        // Wait for key press
+        // std::io::stdin().read_line(&mut String::new()).unwrap();
+
+        // Sleep for 4 seconds
+        // std::thread::sleep(std::time::Duration::from_secs(4));
+    }
+}

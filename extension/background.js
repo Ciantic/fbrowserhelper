@@ -1,13 +1,10 @@
 // extension/messaging.ts
-if ("chrome" in window && !("browser" in window)) {
-  browser = chrome;
-}
 var port = null;
 var listeners = /* @__PURE__ */ new Set();
 var disconnectListeners = /* @__PURE__ */ new Set();
 function openOrReusePort() {
   if (!port) {
-    port = browser.runtime.connectNative("f_browser_helper_app");
+    port = chrome.runtime.connectNative("f_browser_helper_app");
     port.onMessage.addListener((msg) => {
       for (const listener of listeners) {
         listener(msg);
@@ -18,10 +15,6 @@ function openOrReusePort() {
         listener(port2);
       }
     });
-  }
-  if (port.error) {
-    console.warn("Error opening port: ", port.error);
-    port = null;
   }
   return port;
 }
@@ -39,22 +32,58 @@ function listenToMessage(cb) {
 }
 
 // extension/background.ts
-if ("chrome" in window && !("browser" in window)) {
-  browser = chrome;
-}
 var windowInfoMap = /* @__PURE__ */ new Map();
-var curWindowId = null;
-browser.windows.onFocusChanged.addListener((windowId) => {
-  curWindowId = windowId;
-  if (windowId === -1) {
+function updateWindowIcon(tab) {
+  if (!tab.windowId) {
+    console.warn("No windowId for tab: ", tab);
     return;
   }
-  if (windowInfoMap.has(windowId)) {
+  if (!tab.url) {
+    console.warn("No URL for tab: ", tab);
     return;
   }
+  const windowInfo = windowInfoMap.get(tab.windowId);
+  if (!windowInfo) {
+    console.warn("No window info for window: ", tab.windowId);
+    return;
+  }
+  console.log("Setting taskbar icon for window: ", windowInfo.hwnd, tab.url);
   postMessage({
-    type: "getActiveWindow"
+    type: "setTaskbarIcon",
+    hwnd: windowInfo.hwnd,
+    iconUrl: tab.url
   });
+}
+chrome.tabs.onActivated.addListener(async (activeInfo) => {
+  console.log("Tab activated: ", activeInfo);
+  const tab = await chrome.tabs.get(activeInfo.tabId);
+  updateWindowIcon(tab);
+});
+chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+  if (changeInfo.favIconUrl) {
+    if (tab.active) {
+      updateWindowIcon(tab);
+    }
+  }
+});
+var curWindowId = null;
+chrome.windows.onFocusChanged.addListener(async (windowId) => {
+  if (windowId === chrome.windows.WINDOW_ID_NONE || windowId === chrome.windows.WINDOW_ID_CURRENT) {
+    return;
+  }
+  curWindowId = windowId;
+  if (!windowInfoMap.has(windowId)) {
+    postMessage({
+      type: "getActiveWindow"
+    });
+  }
+  const tabs = await chrome.tabs.query({
+    active: true,
+    windowId
+  });
+  if (tabs.length > 0) {
+    updateWindowIcon(tabs[0]);
+  }
 });
 listenToMessage((msg) => {
   if (msg.type === "activeWindow") {
@@ -72,9 +101,14 @@ listenToMessage((msg) => {
       hwnd: msg.hwnd,
       className: msg.className
     });
+    postMessage({
+      type: "ungroupTaskbarButton",
+      hwnd: msg.hwnd,
+      newId: curWindowId.toString()
+    });
   }
 });
-browser.browserAction.onClicked.addListener(() => {
+chrome.action.onClicked.addListener(() => {
   postMessage({
     type: "getActiveWindow"
   });

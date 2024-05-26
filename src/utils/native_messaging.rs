@@ -5,9 +5,12 @@
 // TODO: This could remove the need for the `events` module with traits
 
 use serde::Serialize;
+use std::fmt::Debug;
 
 use crate::events::{MessageFromBrowser, MessageToError};
 use std::io::{Read, Write};
+
+use crate::log;
 
 // Native messaging protocol:
 //
@@ -36,17 +39,29 @@ pub fn read_message<R: Read>(mut input: R) -> Result<MessageFromBrowser, Message
     })
 }
 
-pub fn send_message<W: Write, S: Serialize>(
+pub fn send_message<W: Write, S: Serialize + Debug>(
     mut output: W,
     message: &S,
 ) -> Result<(), &'static str> {
+    // log(&format!("Sending message: {:?} ", &message));
+
     let message_buffer =
         serde_json::to_vec(message).map_err(|_| "Send: Failed to serialize message")?;
     let length = message_buffer.len() as u32;
 
+    // log(&format!(
+    //     "Message length: {} {} {}",
+    //     length,
+    //     length.to_le(),
+    //     length.to_be()
+    // ));
+
     output
-        .write_all(&length.to_le_bytes())
+        .write_all(&length.to_ne_bytes())
         .map_err(|_| "Send: Failed to write message length")?;
+    output
+        .flush()
+        .map_err(|_| "Send: Failed to flush message")?;
     output
         .write_all(&message_buffer)
         .map_err(|_| "Send: Failed to write message")?;
