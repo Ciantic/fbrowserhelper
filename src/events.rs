@@ -91,7 +91,6 @@ fn event_handler(msg: MessageFromBrowser) -> Result<MessageToBrowser, MessageToE
         }
 
         MessageFromBrowser::SetTaskbarIcon { hwnd, icon_url } => {
-            log(&format!("Setting icon for hwnd {} to {}", hwnd, icon_url));
             let hwnd = HWND(hwnd as isize);
 
             let url = url::Url::parse(&icon_url).map_err(|_| MessageToError::UrlParsingError {

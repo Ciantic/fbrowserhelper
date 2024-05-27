@@ -31,10 +31,6 @@ function updateWindowIcon(tab: chrome.tabs.Tab) {
         console.warn("No windowId for tab: ", tab);
         return;
     }
-    if (!tab.url) {
-        console.warn("No URL for tab: ", tab);
-        return;
-    }
 
     const windowInfo = windowInfoMap.get(tab.windowId);
     if (!windowInfo) {
@@ -139,6 +135,10 @@ listenToMessage((msg) => {
             newId: curWindowId.toString(),
         });
     }
+});
+
+listenToDisconnect(() => {
+    console.log("Disconnected from native app.");
 });
 
 // Browser action

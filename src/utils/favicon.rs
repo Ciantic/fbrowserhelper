@@ -53,27 +53,12 @@ pub fn get_favicon_from_url(url: &Url) -> Result<String, GetFaviconError> {
     // Fetch the icon and convert to ico before saving
     let icon = reqwest::blocking::get(format!("https://t2.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url={}&size=128", url_without_path))?;
 
-    if icon.headers().get("content-type").unwrap() != "image/png" {
-        // This should not happen, as Google's favicon service always returns a PNG
-        log(&format!(
-            "Format is {:?}",
-            icon.headers().get("content-type").unwrap()
-        ));
-        return Err(GetFaviconError::NotInPngFormatError);
-    }
+    let image = image::load_from_memory(icon.bytes()?.to_vec().as_slice()).unwrap();
+    let width = image.width();
+    let height = image.height();
+    let bytevector = image.to_rgba8().into_vec();
 
-    let pngbytes = icon.bytes()?.to_vec();
-    let decoded_png = lodepng::decode32(pngbytes.as_slice())?;
-    let bytevector: Vec<u8> = decoded_png
-        .buffer
-        .iter()
-        .flat_map(|pixel| [pixel.r, pixel.g, pixel.b, pixel.a])
-        .collect();
-    let icondata = IconImage::from_rgba_data(
-        decoded_png.width as u32,
-        decoded_png.height as u32,
-        bytevector,
-    );
+    let icondata = IconImage::from_rgba_data(width as u32, height as u32, bytevector);
 
     let mut icon_dir = ico::IconDir::new(ico::ResourceType::Icon);
     icon_dir.add_entry(ico::IconDirEntry::encode(&icondata)?);

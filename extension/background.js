@@ -30,16 +30,16 @@ function listenToMessage(cb) {
   listeners.add(cb);
   openOrReusePort()?.onMessage.addListener(cb);
 }
+function listenToDisconnect(cb) {
+  disconnectListeners.add(cb);
+  openOrReusePort()?.onDisconnect.addListener(cb);
+}
 
 // extension/background.ts
 var windowInfoMap = /* @__PURE__ */ new Map();
 function updateWindowIcon(tab) {
   if (!tab.windowId) {
     console.warn("No windowId for tab: ", tab);
-    return;
-  }
-  if (!tab.url) {
-    console.warn("No URL for tab: ", tab);
     return;
   }
   const windowInfo = windowInfoMap.get(tab.windowId);
@@ -107,6 +107,9 @@ listenToMessage((msg) => {
       newId: curWindowId.toString()
     });
   }
+});
+listenToDisconnect(() => {
+  console.log("Disconnected from native app.");
 });
 chrome.action.onClicked.addListener(() => {
   postMessage({

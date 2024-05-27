@@ -7,7 +7,7 @@ declare const chrome: typeof globalThis.chrome;
 type MessageFromBrowser =
     | { type: "getActiveWindow" }
     | { type: "ungroupTaskbarButton"; hwnd: number; newId: string }
-    | { type: "setTaskbarIcon"; hwnd: number; iconUrl: string }
+    | { type: "setTaskbarIcon"; hwnd: number; iconUrl?: string }
     | { type: "quit" };
 
 type MessageToBrowser =
