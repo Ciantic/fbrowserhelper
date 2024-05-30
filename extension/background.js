@@ -69,6 +69,7 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
 });
 var curWindowId = null;
 chrome.windows.onFocusChanged.addListener(async (windowId) => {
+  console.log("Focus changed: ", windowId);
   if (windowId === chrome.windows.WINDOW_ID_NONE || windowId === chrome.windows.WINDOW_ID_CURRENT) {
     return;
   }
@@ -86,7 +87,12 @@ chrome.windows.onFocusChanged.addListener(async (windowId) => {
     updateWindowIcon(tabs[0]);
   }
 });
-listenToMessage((msg) => {
+chrome.tabs.onDetached.addListener(async (tabId) => {
+  console.log("Tab detached: ", tabId);
+  const tab = await chrome.tabs.get(tabId);
+  updateWindowIcon(tab);
+});
+listenToMessage(async (msg) => {
   if (msg.type === "activeWindow") {
     if (!curWindowId || curWindowId === -1) {
       return;
@@ -94,6 +100,7 @@ listenToMessage((msg) => {
     if (!msg.processName.endsWith("chrome.exe") && !msg.processName.endsWith("msedge.exe") && !msg.processName.endsWith("firefox.exe")) {
       return;
     }
+    console.log("Active window: ", msg, curWindowId);
     if (windowInfoMap.has(curWindowId)) {
       return;
     }
@@ -106,6 +113,13 @@ listenToMessage((msg) => {
       hwnd: msg.hwnd,
       newId: curWindowId.toString()
     });
+    const tabs = await chrome.tabs.query({
+      active: true,
+      windowId: curWindowId
+    });
+    if (tabs.length > 0) {
+      updateWindowIcon(tabs[0]);
+    }
   }
 });
 listenToDisconnect(() => {

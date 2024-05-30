@@ -73,6 +73,7 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
 
 let curWindowId: WindowId | null = null;
 chrome.windows.onFocusChanged.addListener(async (windowId) => {
+    console.log("Focus changed: ", windowId);
     // If windowId is -1, it means no browser window is focused.
     if (
         windowId === chrome.windows.WINDOW_ID_NONE ||
@@ -102,7 +103,13 @@ chrome.windows.onFocusChanged.addListener(async (windowId) => {
     }
 });
 
-listenToMessage((msg) => {
+chrome.tabs.onDetached.addListener(async (tabId) => {
+    console.log("Tab detached: ", tabId);
+    const tab = await chrome.tabs.get(tabId);
+    updateWindowIcon(tab);
+});
+
+listenToMessage(async (msg) => {
     if (msg.type === "activeWindow") {
         // Ignore if no window is focused.
         if (!curWindowId || curWindowId === -1) {
@@ -117,6 +124,8 @@ listenToMessage((msg) => {
         ) {
             return;
         }
+
+        console.log("Active window: ", msg, curWindowId);
 
         // Ignore if the window is already stored.
         if (windowInfoMap.has(curWindowId)) {
@@ -133,6 +142,15 @@ listenToMessage((msg) => {
             hwnd: msg.hwnd,
             newId: curWindowId.toString(),
         });
+
+        const tabs = await chrome.tabs.query({
+            active: true,
+            windowId: curWindowId,
+        });
+
+        if (tabs.length > 0) {
+            updateWindowIcon(tabs[0]);
+        }
     }
 });
 
