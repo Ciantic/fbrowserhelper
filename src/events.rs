@@ -7,8 +7,9 @@ use crate::log;
 use crate::utils::favicon::get_favicon_from_url;
 use crate::utils::native_messaging::{read_message, send_message};
 use crate::utils::win32::{
-    allow_maximize_and_snapping, get_active_window, get_process_name, get_window_class,
-    get_window_title, set_icon, ungroup_taskbar_button,
+    allow_maximize_and_snapping, clear_pinned_taskbar_icon, get_active_window, get_process_name,
+    get_window_class, get_window_title, prevent_pinning_taskbar_button, set_icon,
+    ungroup_taskbar_button,
 };
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -86,7 +87,13 @@ fn event_handler(msg: MessageFromBrowser) -> Result<MessageToBrowser, MessageToE
         }
 
         MessageFromBrowser::UngroupTaskbarButton { hwnd, new_id } => {
-            ungroup_taskbar_button(HWND(hwnd as isize), &new_id);
+            // Order here is important, otherwise icon gets stuck in Google Chrome
+            let hwnd_ = HWND(hwnd as isize);
+            clear_pinned_taskbar_icon(hwnd_);
+            ungroup_taskbar_button(hwnd_, &new_id);
+            prevent_pinning_taskbar_button(hwnd_);
+            allow_maximize_and_snapping(hwnd_);
+            log(&format!("Ungroupped a window {}", hwnd));
             Ok(MessageToBrowser::Ok)
         }
 
@@ -102,10 +109,11 @@ fn event_handler(msg: MessageFromBrowser) -> Result<MessageToBrowser, MessageToE
                 // message: format!("{:?}", err),
             })?;
 
-            set_icon(hwnd, favicon_path);
+            set_icon(hwnd, &favicon_path);
+            // set_pinned_taskbar_icon(hwnd, &favicon_path);
+            // clear_pinned_taskbar_icon(hwnd);
 
             // When using popups in Firefox, the window is not maximizable, enable that
-            allow_maximize_and_snapping(hwnd);
 
             log(&format!("Icon set for hwnd {}", hwnd.0));
 

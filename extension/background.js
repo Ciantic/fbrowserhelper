@@ -62,6 +62,7 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   if (changeInfo.favIconUrl) {
     if (tab.active) {
+      console.log("Updated tab");
       updateWindowIcon(tab);
     }
   }
@@ -96,7 +97,6 @@ listenToMessage((msg) => {
     if (windowInfoMap.has(curWindowId)) {
       return;
     }
-    console.info("Storing", curWindowId, msg);
     windowInfoMap.set(curWindowId, {
       hwnd: msg.hwnd,
       className: msg.className

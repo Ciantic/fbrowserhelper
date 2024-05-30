@@ -3,11 +3,14 @@ use std::thread;
 use ico::IconImage;
 use url::Url;
 use windows::{
-    core::{s, HSTRING, PCWSTR, PWSTR},
+    core::{s, HSTRING, PCWSTR, PROPVARIANT, PWSTR},
     Win32::{
         Foundation::*,
         Graphics::Gdi::ValidateRect,
-        Storage::EnhancedStorage::{PKEY_AppUserModel_ID, PKEY_AppUserModel_PreventPinning},
+        Storage::EnhancedStorage::{
+            PKEY_AppUserModel_ID, PKEY_AppUserModel_PreventPinning,
+            PKEY_AppUserModel_RelaunchIconResource,
+        },
         System::{
             Com::StructuredStorage::{
                 InitPropVariantFromBooleanVector, InitPropVariantFromStringVector,
@@ -102,7 +105,10 @@ extern "system" fn wndproc(window: HWND, message: u32, wparam: WPARAM, lparam: L
                                     Err(err) => {
                                         println!("Error {:?}", err);
                                     }
-                                    Ok(icon_path) => set_icon(target_window, icon_path),
+                                    Ok(icon_path) => {
+                                        set_icon(target_window, &icon_path);
+                                        set_pinned_taskbar_icon(window, &icon_path);
+                                    }
                                 }
                             }
                         });
@@ -141,8 +147,8 @@ pub fn allow_maximize_and_snapping(window: HWND) {
     unsafe { SetWindowLongA(window, GWL_STYLE, style | WS_MAXIMIZEBOX.0 as i32) };
 }
 
-pub fn set_icon(window: HWND, icon_path: String) {
-    let icon_path_hstring = HSTRING::from(&icon_path);
+pub fn set_icon(window: HWND, icon_path: &str) {
+    let icon_path_hstring = HSTRING::from(icon_path);
     let icon_path_pcstr = PCWSTR(icon_path_hstring.as_ptr());
     let hicon =
         unsafe { LoadImageW(None, icon_path_pcstr, IMAGE_ICON, 64, 64, LR_LOADFROMFILE).unwrap() };
@@ -202,11 +208,55 @@ pub fn ungroup_taskbar_button(window: HWND, new_id: &str) {
         store
             .SetValue(&PKEY_AppUserModel_ID, &prop_variant)
             .unwrap();
+    }
+}
+
+pub fn prevent_pinning_taskbar_button(window: HWND) {
+    unsafe {
+        let store: IPropertyStore = SHGetPropertyStoreForWindow(window).unwrap();
 
         // Prevent pinning (it says this should be done *before* ungrouping, but it worked after too \_o_/)
         let variant = InitPropVariantFromBooleanVector(Some(&[BOOL(1)])).unwrap();
         store
             .SetValue(&PKEY_AppUserModel_PreventPinning, &variant)
+            .unwrap();
+    }
+}
+
+pub fn unprevent_pinning_taskbar_button(window: HWND) {
+    unsafe {
+        let store: IPropertyStore = SHGetPropertyStoreForWindow(window).unwrap();
+
+        let variant = PROPVARIANT::default();
+        store
+            .SetValue(&PKEY_AppUserModel_PreventPinning, &variant)
+            .unwrap();
+    }
+}
+
+pub fn set_pinned_taskbar_icon(window: HWND, favicon_path: &str) {
+    unsafe {
+        let store: IPropertyStore = SHGetPropertyStoreForWindow(window).unwrap();
+
+        // Ungroup taskbar button
+        let new_id_hstr = HSTRING::from(favicon_path);
+        let new_id_pcwstr = PCWSTR(new_id_hstr.as_ptr());
+        let prop_variant = InitPropVariantFromStringVector(Some(&[new_id_pcwstr])).unwrap();
+        store
+            .SetValue(&PKEY_AppUserModel_RelaunchIconResource, &prop_variant)
+            .unwrap();
+    }
+}
+
+pub fn clear_pinned_taskbar_icon(window: HWND) {
+    unsafe {
+        let store: IPropertyStore = SHGetPropertyStoreForWindow(window).unwrap();
+
+        // Ungroup taskbar button
+        let prop_variant = PROPVARIANT::default();
+        // println!("Is empty variant {}", prop_variant.is_empty());
+        store
+            .SetValue(&PKEY_AppUserModel_RelaunchIconResource, &prop_variant)
             .unwrap();
     }
 }
@@ -267,63 +317,5 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_set_icon() {
-        let window = HWND(3281102);
-        // let window = HWND(917684);
-        let title = get_window_title(window);
-        println!("Title {}", &title);
-        if title == "" {
-            println!("No title");
-            return;
-        }
-
-        let icon_path_pcstr =
-            w!("C:\\Source\\Rust\\fbrowserhelper\\target\\debug\\www.nytimes.com.ico");
-
-        // let hicon = unsafe {
-        //     LoadImageW(None, icon_path_pcstr, IMAGE_ICON, 64, 64, LR_LOADFROMFILE).unwrap()
-        // };
-        let hicon2 = unsafe {
-            LoadImageW(None, icon_path_pcstr, IMAGE_ICON, 128, 128, LR_LOADFROMFILE).unwrap()
-        };
-        println!("HICON2 {:?}", hicon2.0);
-        let hicon = unsafe {
-            LoadImageW(None, icon_path_pcstr, IMAGE_ICON, 64, 64, LR_LOADFROMFILE).unwrap()
-        };
-        let hicon2 = unsafe {
-            LoadImageW(None, icon_path_pcstr, IMAGE_ICON, 256, 256, LR_LOADFROMFILE).unwrap()
-        };
-        println!("HICON1 {:?}", hicon.0);
-        println!("HICON2 {:?}", hicon2.0);
-        // std::thread::sleep(std::time::Duration::from_secs(2));
-        // thread::spawn(move || {
-        // thread::spawn(move || {
-        let res1 = unsafe {
-            SendMessageW(
-                window,
-                WM_SETICON,
-                WPARAM(ICON_SMALL as usize),
-                LPARAM(hicon.0 as isize),
-            )
-        };
-        // let err = unsafe { GetLastError() };
-        println!("Set icon result: {}", res1.0);
-
-        let res2 = unsafe {
-            SendMessageW(
-                window,
-                WM_SETICON,
-                WPARAM(ICON_BIG as usize),
-                LPARAM(hicon2.0 as isize),
-            )
-        };
-        println!("Set icon result 2: {}", res1.0);
-        // });
-
-        // Wait for key press
-        // std::io::stdin().read_line(&mut String::new()).unwrap();
-
-        // Sleep for 4 seconds
-        // std::thread::sleep(std::time::Duration::from_secs(4));
-    }
+    fn test_set_icon() {}
 }

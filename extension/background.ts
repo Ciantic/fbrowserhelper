@@ -57,6 +57,7 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     // When changing the favicon url
     if (changeInfo.favIconUrl) {
         if (tab.active) {
+            console.log("Updated tab");
             updateWindowIcon(tab);
         }
         // console.log("Tab updated: ", changeInfo.favIconUrl, tabId, tab.windowId);
@@ -121,8 +122,6 @@ listenToMessage((msg) => {
         if (windowInfoMap.has(curWindowId)) {
             return;
         }
-
-        console.info("Storing", curWindowId, msg);
 
         windowInfoMap.set(curWindowId, {
             hwnd: msg.hwnd,
